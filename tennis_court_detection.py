@@ -19,7 +19,7 @@ def generate_court_model_lines():
     # court_model_img_1 = cv2.imread('tennis_court_clean.png')
 
     court_m_h, court_m_w, _ = court_model_img.shape
-    y = [84, 274, 500, 724, 915]          # y = a
+    y = [84, 274, 724, 915]          # y = a
     # court_model_lines_h_eqt = [84, 274, 500, 724, 915]   
     x = [131, 184, 330, 476, 529]         # x = b
     # court_model_lines_v_eqt = [131, 184, 330, 476, 529]  
@@ -28,17 +28,16 @@ def generate_court_model_lines():
     court_model_lines_h = [
         Line.from_two_point(0, (x[0], y[0]), (x[4], y[0])),
         Line.from_two_point(1, (x[1], y[1]), (x[3], y[1])),
-        Line.from_two_point(2, (x[0], y[2]), (x[4], y[2])),
-        Line.from_two_point(3, (x[1], y[3]), (x[3], y[3])),
-        Line.from_two_point(4, (x[0], y[4]), (x[4], y[4]))
+        Line.from_two_point(2, (x[1], y[2]), (x[3], y[2])),
+        Line.from_two_point(3, (x[0], y[3]), (x[4], y[3]))
     ]
 
     court_model_lines_v = [
-        Line.from_two_point(5, (x[0], y[0]),(x[0], y[4])),
-        Line.from_two_point(6, (x[1], y[0]),(x[1], y[4])),
-        Line.from_two_point(7, (x[2], y[1]),(x[2], y[3])),
-        Line.from_two_point(8, (x[3], y[0]),(x[3], y[4])),
-        Line.from_two_point(9, (x[4], y[0]),(x[4], y[4])),
+        Line.from_two_point(4, (x[0], y[0]),(x[0], y[3])),
+        Line.from_two_point(5, (x[1], y[0]),(x[1], y[3])),
+        Line.from_two_point(6, (x[2], y[1]),(x[2], y[2])),
+        Line.from_two_point(7, (x[3], y[0]),(x[3], y[3])),
+        Line.from_two_point(8, (x[4], y[0]),(x[4], y[3])),
     ]
 
     #################### 
@@ -65,10 +64,10 @@ def generate_court_model_lines():
 
 def main():
     # tennis court image
-    img = cv2.imread('tennis_pic_02.png')
+    img = cv2.imread('tennis_pic_06.png')
     height, width, _ = img.shape
     if height > 960:
-        w_h_ratio = width / height
+        w_h_ratio = width / float(height)
         img = cv2.resize(img, (int(960 * w_h_ratio), 960), interpolation=cv2.INTER_AREA)
         height, width, _ = img.shape
 
@@ -76,7 +75,10 @@ def main():
     # 3.1 White Pixel Detection
     ###################################
     img_ycbcr = cv2.cvtColor(img, cv2.COLOR_BGR2YCR_CB)
+    img_y = img_ycbcr[:, :, 0]
 
+    # prevent overflow error
+    img_y_int32 = img_ycbcr[:, :, 0].astype(np.int32)
     court_line_candidate = np.zeros((height, width))
 
     tau = 8
@@ -86,15 +88,19 @@ def main():
     for x in range(tau, width - tau):
         for y in range(tau, height - tau):
             court_line_candidate[y, x] = court_line_formula(
-                    img_ycbcr, y, x, tau, threshold_l, threshold_d
+                    img_y_int32, y, x, tau, threshold_l, threshold_d
                 )
 
 
     # exclude pixels that are in textured regions
-    block_size = 11
+    
+    # previously implemented CourtLinePixelDetector::computeStructureTensorElements from https://github.com/gchlebus/tennis-court-detection
+    # result: not as good as mine
+
+    block_size = 21         # affect the most in edge/ surface detection
     aperture_size = 3
     structure_matrix = cv2.cornerEigenValsAndVecs(
-        img_ycbcr[:, :, 0],
+        img_y,
         block_size,
         aperture_size
     )
@@ -107,8 +113,9 @@ def main():
             if (lambda_max > 4 * lambda_min): line_structure_const[y, x] = 1
             else: line_structure_const[y, x] = 0
 
-    court_line_candidate = cv2.normalize(court_line_candidate, None, alpha=0, beta=255, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_8U)
     line_structure_const = cv2.normalize(line_structure_const, None, alpha=0, beta=255, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_8U)
+    
+    court_line_candidate = cv2.normalize(court_line_candidate, None, alpha=0, beta=255, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_8U)
     line_structure_const_and = cv2.bitwise_and(court_line_candidate, court_line_candidate, mask=line_structure_const)
 
     ###################################
@@ -229,12 +236,16 @@ def main():
         regressed = Line.from_point_slope(id=(50 + key), p1=(0, c), m=m)
 
         lines_extended[key].draw_line_extended(img_siegelslope, (255, 0, 0))
+        
+        # draw the normal
+        lines_extended[key].draw_normal(img_siegelslope, (255, 127, 127), length=50, thickness=2)
+
         regressed.draw_line_extended(img_siegelslope, (0, 0, 255))
 
-        # cv2.imshow('img_sigelslope', img_siegelslope)
-        # cv2.imshow('line {}'.format(key), court_line_cand_img[key])
-        # cv2.waitKey(0)
-        # cv2.destroyAllWindows()
+        cv2.imshow('img_sigelslope', img_siegelslope)
+        cv2.imshow('line {}'.format(key), court_line_cand_img[key])
+        cv2.waitKey(0)
+        cv2.destroyAllWindows()
 
     # scanned for duplicates
     # but no duplicates XDD
@@ -544,26 +555,25 @@ def main():
         # cv2.imshow('line 1', img_line_1)
         # cv2.imshow('sobel line', grad)
 
-        # for k, _img in court_line_cand_img.items():
-        #     cv2.imshow('court line {}'.format(k), _img)
+        for k, _img in court_line_cand_img.items():
+            cv2.imshow('court line {}'.format(k), _img)
         
         k = cv2.waitKey(1)
         if k == ord('q'):
             break
 
-def court_line_formula(img_ycbcr, y, x, tau, threshold_l, threshold_d):
+def court_line_formula(img_y, y, x, tau, threshold_l, threshold_d):
     '''
     Forumla for determine whether a pixel is court line candidate
     in 3.1 White pixel detection
     '''
-    # height, width, _ = img_ycbcr.shape
-
+    # height, width, _ = img_y.shape
     # print("(x, y) = ({}, {})".format(x, y))
 
-    if ((img_ycbcr[y, x, 0] >= threshold_l) and (img_ycbcr[y, x, 0] - img_ycbcr[y, x-tau, 0] > threshold_d) and (img_ycbcr[y, x, 0] - img_ycbcr[y, x+tau, 0] > threshold_d)):
+    if ((img_y[y, x] >= threshold_l) and (img_y[y, x] - img_y[y, x-tau] > threshold_d) and (img_y[y, x] - img_y[y, x+tau] > threshold_d)):
         return 1
 
-    elif ((img_ycbcr[y, x, 0] >= threshold_l) and (img_ycbcr[y, x, 0] - img_ycbcr[y - tau, x, 0] > threshold_d) and (img_ycbcr[y, x, 0] - img_ycbcr[y+tau, x, 0] > threshold_d)):
+    elif ((img_y[y, x] >= threshold_l) and (img_y[y, x] - img_y[y - tau, x] > threshold_d) and (img_y[y, x] - img_y[y+tau, x] > threshold_d)):
         return 1
 
     else: return 0

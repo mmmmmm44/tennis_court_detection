@@ -52,9 +52,19 @@ class Line:
         '''
         Draw the line defined by the start and end point
         '''
-        mid_pt = (int((self.start_pt[0] + self.end_pt[0]) / 2), int((self.start_pt[1] + self.end_pt[1]) / 2))
+        mid_pt = (int((self.start_pt[0] + self.end_pt[0]) / 2.0), int((self.start_pt[1] + self.end_pt[1]) / 2.0))
         cv2.putText(img, str(self.id), mid_pt, cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 1, cv2.LINE_AA)
         cv2.line(img, (int(self.start_pt[0]), int(self.start_pt[1])), (int(self.end_pt[0]), int(self.end_pt[1])), color, 2)
+
+    def draw_normal(self, img, color, length=50, thickness=2):
+        '''
+        Draw the parameterized normal at the mid-pt of the line
+        with self-defined length
+        '''
+        mid_pt = (int((self.start_pt[0] + self.end_pt[0]) / 2.0), int((self.start_pt[1] + self.end_pt[1]) / 2.0))
+        end_pt = (int(mid_pt[0] + self.n_x * length), int(mid_pt[1] + self.n_y * length))
+        cv2.line(img, mid_pt, end_pt, color, thickness)
+
 
     def __select_edge_pts(self, edge_pts, width, height):
         candidate = []
@@ -77,7 +87,7 @@ class Line:
         #     math.degrees(math.atan2(end_pt[1] - start_pt[1], end_pt[0] - start_pt[0]))
         #     ))
 
-        mid_pt = (int((self.start_pt[0] + self.end_pt[0]) / 2), int((self.start_pt[1] + self.end_pt[1]) / 2))
+        mid_pt = (int((self.start_pt[0] + self.end_pt[0]) / 2.0), int((self.start_pt[1] + self.end_pt[1]) / 2.0))
 
         # draw
         cv2.putText(img, str(self.id), mid_pt, cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 1, cv2.LINE_AA)
