@@ -6,6 +6,10 @@ from line import Line
 from merge_line_banderlog013_maxi import HoughBundler
 import numpy as np
 
+from skimage.transform import hough_line, hough_line_peaks
+from skimage.feature import canny
+from skimage import img_as_ubyte, img_as_float
+
 from scipy import stats
 
 import math
@@ -129,34 +133,57 @@ def main():
     img_1 = np.array(img)
     img_2 = np.array(img)
 
-    blur_canny = cv2.Canny(line_structure_const_and, 50, 200, None, 3)
+    # blur_canny = cv2.Canny(line_structure_const_and, 50, 200, None, 3)
 
-    linesP = cv2.HoughLinesP(blur_canny, 1, np.pi / 180, 50, None, 70, 10)
+    # linesP = cv2.HoughLinesP(blur_canny, 1, np.pi / 180, 50, None, 70, 10)
     
-    if linesP is not None:
-        for i in range(0, len(linesP)):
-            l = linesP[i][0]
-            cv2.line(img_0, (l[0], l[1]), (l[2], l[3]), (0,0,255), 3, cv2.LINE_AA)
+    # if linesP is not None:
+    #     for i in range(0, len(linesP)):
+    #         l = linesP[i][0]
+    #         cv2.line(img_0, (l[0], l[1]), (l[2], l[3]), (0,0,255), 3, cv2.LINE_AA)
 
-    # unwrap the linesP array
-    lines = [line_i for line_i in [l[0] for l in linesP]]
+    # # unwrap the linesP array
+    # lines = [line_i for line_i in [l[0] for l in linesP]]
 
-    # pre-process the detected lines (filtering out them)
-    bundler = HoughBundler(min_distance=30, min_angle=5)
-    lines_processed = bundler.process_lines(lines)
-    lines = lines_processed
+    # # pre-process the detected lines (filtering out them)
+    # bundler = HoughBundler(min_distance=30, min_angle=5)
+    # lines_processed = bundler.process_lines(lines)
+    # lines = lines_processed
 
-    print("number of remaining lines:", len(lines))
+    # print("number of remaining lines:", len(lines))
 
-    # lines_extended = {}
+    # # lines_extended = {}
 
-    # extend the lines to cover the whole image
-    lines_extended = []
+    # # extend the lines to cover the whole image
+    # lines_extended = []
 
-    for key, line in enumerate(lines):
-        l_obj = Line.from_two_point(key, p1=line[:2], p2=line[2:])
+    # for key, line in enumerate(lines):
+    #     l_obj = Line.from_two_point(key, p1=line[:2], p2=line[2:])
 
-        lines_extended.append(l_obj)
+    #     lines_extended.append(l_obj)
+
+    lines_extended = {}
+
+    # using hough transform from skimage
+    temp = img_as_float(line_structure_const_and)
+    blur_canny = canny(temp, sigma=3)
+
+    # hough line transform from skimage
+    tested_angles = np.linspace(-np.pi, np.pi, 360, endpoint=False)
+    h, theta, d = hough_line(blur_canny, theta=tested_angles)
+
+    thresh_hough = 0.42 * np.amax(h)
+
+    for id, (_, angle, dist) in enumerate(zip(*hough_line_peaks(h, theta, d, threshold=thresh_hough))):
+        (x0, y0) = dist * np.array([np.cos(angle), np.sin(angle)])
+        slope = np.tan(angle + np.pi/2)
+
+        # draw a line on opencv
+        l = Line.from_point_slope(id, (x0, y0), slope)
+        lines_extended[id] = l
+        # l.draw_line_extended(img_1, (255, 0, 0))
+
+    blur_canny = img_as_ubyte(blur_canny)
 
 
     #################### 
@@ -169,19 +196,21 @@ def main():
     #     mid_pt = (int((start_pt[0] + end_pt[0]) / 2), int((start_pt[1] + end_pt[1]) / 2))
     #     cv2.putText(img_1, str(key), mid_pt, cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 1, cv2.LINE_AA)
     #     cv2.line(img_1, (int(start_pt[0]), int(start_pt[1])), (int(end_pt[0]), int(end_pt[1])), (255, 0, 255), 2)
-        # cv2.line(img_lines_only, (int(start_pt[0]), int(start_pt[1])), (int(end_pt[0]), int(end_pt[1])), (255, 255, 255), 2)
+    #     cv2.line(img_lines_only, (int(start_pt[0]), int(start_pt[1])), (int(end_pt[0]), int(end_pt[1])), (255, 255, 255), 2)
 
-    for line in lines_extended:
-        line.draw_line_extended(img_1, (255, 0, 255))
+    # for line in lines_extended.values():
+    #     line.draw_line_extended(img_1, (255, 0, 255))
 
 
     # parameterized every lines by its normal (normalized, start coordinate is (0, 0))
-    
-    # TODO
-    # some problems in court line candidate pixels
-    # maybe problems in line parameterization
-    for line in lines_extended:
+    for line in lines_extended.values():
         line.line_parameterization()
+
+        # test = np.array(img)
+        # line.draw_line_extended(test, (255, 0, 0))
+        # line.draw_normal(test, (255, 127, 127), length=80)
+        # cv2.imshow('test', test)
+        # cv2.waitKey(1)
 
 
     # the set L of court line candidate pixels for each line
@@ -193,7 +222,7 @@ def main():
             if line_structure_const_and[y, x] < 127:
                 continue
 
-            for line in lines_extended:
+            for line in lines_extended.values():
                 p = np.array([x, y, 1])
                 q = np.array(line.parameterized)
                 if abs(np.dot(q, p)) < dist_thresh:
@@ -224,7 +253,9 @@ def main():
 
     # Apply LMedS estimator. Yet I cannot find any python implementation.
     # A similar one with same % breakdown point will be "Robust Regression Using Repeated Medians".
-    # Function that implemented it is scipy.stats.siegelslopes
+    # scipy.stats.siegelslopes implements the paper.
+
+    refinded_lines = {}
 
     for key, points in court_line_candidate_pixels.items():
         x = points[0]
@@ -232,24 +263,29 @@ def main():
         m, c = stats.siegelslopes(y, x)
 
         # visualization
-        img_siegelslope = np.array(img)
-        regressed = Line.from_point_slope(id=(50 + key), p1=(0, c), m=m)
-
-        lines_extended[key].draw_line_extended(img_siegelslope, (255, 0, 0))
+        # img_siegelslope = np.array(img)
+        regressed = Line.from_point_slope(id=key, p1=(0, c), m=m)
         
+        # line paramaterization for the new line
+        regressed.line_parameterization()
+
+        refinded_lines[key] = regressed
+        
+        # cv2.imshow('img_sigelslope', img_siegelslope)
+        # lines_extended[key].draw_line_extended(img_siegelslope, (255, 0, 0))
+        # regressed.draw_line_extended(img_siegelslope, (0, 0, 255))
         # draw the normal
-        lines_extended[key].draw_normal(img_siegelslope, (255, 127, 127), length=50, thickness=2)
+        # lines_extended[key].draw_normal(img_siegelslope, (255, 127, 127), length=80, thickness=2)
+        # cv2.imshow('line {}'.format(key), court_line_cand_img[key])
+        # cv2.waitKey(0)
+        # cv2.destroyAllWindows()
 
-        regressed.draw_line_extended(img_siegelslope, (0, 0, 255))
 
-        cv2.imshow('img_sigelslope', img_siegelslope)
-        cv2.imshow('line {}'.format(key), court_line_cand_img[key])
-        cv2.waitKey(0)
-        cv2.destroyAllWindows()
+    # replace the old one
+    lines_extended = refinded_lines
 
     # scanned for duplicates
     # but no duplicates XDD
-
     rad_thresh = math.cos(0.75 * math.pi / 180)
     dist_thresh = 1.5
     lines_para_dict_new = {}
@@ -257,8 +293,8 @@ def main():
     # print("Before scanned duplicates:", lines_parameterized.keys())
 
     while True:
-        for (line_a, line_b) in combinations(lines_extended, 2):
-            if ((np.dot(line_a.parameterized[:2], line_b.parameterized[:2]) > rad_thresh) and (abs(-line_b.parameterized[2] + line_b.parameterized[2]) < 1.5)):
+        for (line_a, line_b) in combinations(lines_extended.values(), 2):
+            if ((np.dot(line_a.parameterized[:2], line_b.parameterized[:2]) > rad_thresh) and (abs(-line_a.parameterized[2] + line_b.parameterized[2]) < 1.5)):
                 # duplicate
                 if line_a.id in lines_para_dict_new:
                     continue
@@ -281,35 +317,39 @@ def main():
         if len(lines_para_dict_new) == len(lines_extended):
             break
         else:
-            lines_extended = list(lines_para_dict_new.items())
+            lines_extended = lines_para_dict_new
             lines_para_dict_new = {}
 
 
     # print("After scanned duplicates:", lines_extended)
 
-    for line in lines_extended:
-        line.draw_line_extended(img_1, (0, 255, 0))
+    for line in lines_extended.values():
+        line.draw_line_extended(img_0, (255, 0, 0))
 
     ###################################
     # 3.3.1 Finding Line Correspondences
     ###################################
 
     # create two sets, one is horizontal, one is vertical
-
     lines_horizontal, lines_vertical = [], []
-    degree_h = 40
+    degree_h = 25
+    degree_h_in_rad = degree_h * math.pi / 180
 
-    for line in lines_extended:
-        if math.atan2(line.parameterized[1], line.parameterized[0]) * 180 / math.pi > degree_h:   # change sign to >  instead of < because it's using normal.
+    for line in lines_extended.items():
+        result_pyatan2 = math.atan2(line.m_y, line.m_x)
+        if abs(result_pyatan2) < degree_h_in_rad:
             lines_horizontal.append(line)
         else:
             lines_vertical.append(line)
 
+    img_l_h = np.array(img_1)
+    img_l_v = np.array(img_1)
+
     for line in lines_horizontal:
-        line.draw_line_extended(img_1, (255, 255, 0))
+        line.draw_line_extended(img_l_h, (255, 255, 0))
         
     for line in lines_vertical:
-        line.draw_line_extended(img_1, (255, 0, 0))
+        line.draw_line_extended(img_l_v, (255, 0, 0))
 
     # print('lines_horizontal:', lines_horizontal.items())
     # print('lines_vertical:', lines_vertical.items())
@@ -416,14 +456,14 @@ def main():
     #                                 p_cm_3 = [line_cm_v1, line_cm_h2]
     #                                 p_cm_4 = [line_cm_v2, line_cm_h2]
 
-    #                                 # print('line_h_i:', line_h_i.id, ' ; line_h_k:', line_h_k.id)
-    #                                 # print('line_v_m:', line_v_m.id, ' ; line_v_n:', line_v_n.id)
-    #                                 # print('p1:', p1, ', p2:', p2, ', p3', p3, ', p4:', p4)
-    #                                 # print('p_cm_1:', p_cm_1, ', p_cm_2:', p_cm_2, ', p_cm_3:', p_cm_3, ', p_cm_4:', p_cm_4)
+    #                                 print('line_h_i:', line_h_i.id, ' ; line_h_k:', line_h_k.id)
+    #                                 print('line_v_m:', line_v_m.id, ' ; line_v_n:', line_v_n.id)
+    #                                 print('p1:', p1, ', p2:', p2, ', p3', p3, ', p4:', p4)
+    #                                 print('p_cm_1:', p_cm_1, ', p_cm_2:', p_cm_2, ', p_cm_3:', p_cm_3, ', p_cm_4:', p_cm_4)
 
     #                                 pts_src, pts_dest = np.array([p_cm_1[:2], p_cm_2[:2], p_cm_3[:2], p_cm_4[:2]]), np.array([p1[:2], p2[:2], p3[:2], p4[:2]])
-    #                                 # # print(pts_src)
-    #                                 # # print(pts_dest)
+    #                                 print(pts_src)
+    #                                 print(pts_dest)
     #                                 H, status = cv2.findHomography(pts_src, pts_dest, cv2.RANSAC, 5.0)
 
     #                                 ###################################
@@ -552,11 +592,13 @@ def main():
         cv2.imshow('blur_canny', blur_canny)
         cv2.imshow('HoughLinesP result', img_0)
         cv2.imshow('lines extended result', img_1)
+        cv2.imshow('lines extended horizontal', img_l_h)
+        cv2.imshow('lines extended vertical', img_l_v)
         # cv2.imshow('line 1', img_line_1)
         # cv2.imshow('sobel line', grad)
 
-        for k, _img in court_line_cand_img.items():
-            cv2.imshow('court line {}'.format(k), _img)
+        # for k, _img in court_line_cand_img.items():
+        #     cv2.imshow('court line {}'.format(k), _img)
         
         k = cv2.waitKey(1)
         if k == ord('q'):

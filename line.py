@@ -41,8 +41,15 @@ class Line:
         where n_x, n_y is unit vector of the normal of the line
         and d = perpendicular distance to the origin
         '''
+        slope_original = -self.A / self.B
+        self.m_x, self.m_y = Line.slope_to_unit_vector(slope_original)
+
         slope_normal = self.B / self.A
         self.n_x, self.n_y = Line.slope_to_unit_vector(slope_normal)
+
+        # check whether the vectors are normal to each other
+        # print('Line: {} dot product btw original and normal: {}'.format(self.id, np.vdot(np.array([m_x,m_y]), np.array([self.n_x, self.n_y]))))
+
         self.d = Line.dist_btw_line_point(self.A, self.B, self.C, (0, 0))
 
         self.parameterized = [self.n_x, self.n_y, -self.d]
@@ -120,10 +127,19 @@ class Line:
         x^2 + y^2 = 1
         '''
 
-        x = math.sqrt(1 / (1 + m * m))
-        y = math.sqrt(1 / (1 + 1 / (m * m)))
+        # x = math.sqrt(1 / (1 + m * m))
+        # y = math.sqrt(1 / (1 + 1 / (m * m)))
 
-        return x, y
+        # return x, y
+
+        vec = np.array([1, m])
+        normalized = vec / np.linalg.norm(vec)
+
+        # check if m is inf or -inf
+        if m == float('inf') or m == float('-inf'):
+            normalized = np.array([0, 1])
+
+        return normalized[0], normalized[1]        
 
     def dist_btw_line_point(A, B, C, p1):
         '''
