@@ -2,6 +2,9 @@ import math
 import cv2
 import numpy as np
 
+# const parameter config
+from config import DEGREE_THRESH, DIST_LINES_THRESH
+
 # Line object that stores its equation and parameterized parameters
 
 class Line:
@@ -11,6 +14,9 @@ class Line:
         self.A = A
         self.B = B
         self.C = C
+
+        # pre-cal
+        self.COS_DEGREE_THRESH = math.cos(DEGREE_THRESH * math.pi / 180)
 
     @classmethod
     def from_two_point(cls, id, p1, p2):
@@ -54,6 +60,20 @@ class Line:
 
         self.parameterized = [self.n_x, self.n_y, -self.d]
 
+    def __eq__(self, other):
+        return self.is_duplicate(other)
+
+    # check whether two lines are duplicates
+    def is_duplicate(self, other):
+        if ((np.dot(self.parameterized[:2], other.parameterized[:2]) > self.COS_DEGREE_THRESH) and (abs(self.parameterized[2] - other.parameterized[2]) < DIST_LINES_THRESH)):
+            return True
+        else:
+            return False
+
+
+    ####################
+    # Visualization
+    ####################
 
     def draw_line(self, img, color):
         '''
