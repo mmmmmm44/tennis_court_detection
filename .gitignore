@@ -172,6 +172,7 @@ cython_debug/
 
 # custom
 *.png
+!test_images/*.png
 *.pdf
 *.psd
 *.f

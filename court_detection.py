@@ -69,7 +69,7 @@ def generate_court_model_lines():
 
 def main():
     # tennis court image
-    img = cv2.imread('tennis_pic_02.png')
+    img = cv2.imread('test_images/tennis_pic_06.png')
     height, width, _ = img.shape
     if height > 960:
         w_h_ratio = width / float(height)
@@ -474,7 +474,7 @@ def main():
 
                                     court_transform = np.array(img)
 
-                                    # trans_court_model = np.zeros((height, width))
+                                    trans_court_model = np.zeros((height, width))
                                     
                                     for line_h in court_model_lines_h:
                                         start_pt_t = np.matmul(H, np.array([line_h.start_pt[0], line_h.start_pt[1], 1]))
@@ -563,6 +563,10 @@ def main():
     # showing images
     draw_court_model_to_img(img_2, saved_model, court_model_lines_h)
     draw_court_model_to_img(img_2, saved_model, court_model_lines_v)
+
+    print('Best model:')
+    print(H)
+    print("Best score:", score_max)
 
     while True:
         cv2.imshow('img', img)
