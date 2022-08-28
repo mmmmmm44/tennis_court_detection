@@ -1,9 +1,11 @@
 # trying to implement the algorithm in the paper
 # Robust Camera Calibration for Sport Videos using Court Models
 
-import cv2
-from line import Line
+import itertools
+import math
+import multiprocessing as mp
 
+import cv2
 import numpy as np
 
 from skimage.transform import hough_line, hough_line_peaks
@@ -12,64 +14,17 @@ from skimage import img_as_ubyte, img_as_float
 
 from scipy import stats
 
-import math
+# custom sub-classes
+from line import Line
+from tennis_court_model import TennisCourtModel
 
 # global constants
 from config import APERATURE_SIZE, CLS_ANGLE_THRESH, THRESHOLD_R, HOUGH_THRESHOLD, TAU, THRESHOLD_L, THRESHOLD_D, BLOCK_SIZE
 
-def generate_court_model_lines():
-
-    # tennis court model and their lines (pre-defined)
-    court_model_img = cv2.imread('tennis_court_clean.png')
-    # court_model_img_1 = cv2.imread('tennis_court_clean.png')
-
-    court_m_h, court_m_w, _ = court_model_img.shape
-    y = [84, 274, 724, 915]          # y = a
-    # court_model_lines_h_eqt = [84, 274, 500, 724, 915]   
-    x = [131, 184, 330, 476, 529]         # x = b
-    # court_model_lines_v_eqt = [131, 184, 330, 476, 529]  
-
-    # forming equations from given points
-    court_model_lines_h = [
-        Line.from_two_point(0, (x[0], y[0]), (x[4], y[0])),
-        Line.from_two_point(1, (x[1], y[1]), (x[3], y[1])),
-        Line.from_two_point(2, (x[1], y[2]), (x[3], y[2])),
-        Line.from_two_point(3, (x[0], y[3]), (x[4], y[3]))
-    ]
-
-    court_model_lines_v = [
-        Line.from_two_point(4, (x[0], y[0]),(x[0], y[3])),
-        Line.from_two_point(5, (x[1], y[0]),(x[1], y[3])),
-        Line.from_two_point(6, (x[2], y[1]),(x[2], y[2])),
-        Line.from_two_point(7, (x[3], y[0]),(x[3], y[3])),
-        Line.from_two_point(8, (x[4], y[0]),(x[4], y[3])),
-    ]
-
-    #################### 
-    # visualization
-    ####################
-    # for line in court_model_lines_h:
-    #     start_pt, end_pt = line[:2], line[2:]
-    #     cv2.line(court_model_img, (int(start_pt[0]), int(start_pt[1])), (int(end_pt[0]), int(end_pt[1])), (255, 0, 255), 2)
-    # for line in court_model_lines_v:
-    #     start_pt, end_pt = line[:2], line[2:]
-    #     cv2.line(court_model_img, (int(start_pt[0]), int(start_pt[1])), (int(end_pt[0]), int(end_pt[1])), (255, 0, 255), 2)
-
-
-    # while True:
-    #     cv2.imshow('court_model_img_1', court_model_img_1)
-
-    #     k = cv2.waitKey(1)
-    #     if k == ord('q'):
-    #         break
-
-    return court_model_img, y, x, court_model_lines_h, court_model_lines_v
-
-
 
 def main():
     # tennis court image
-    img = cv2.imread('test_images/tennis_pic_06.png')
+    img = cv2.imread('test_images/tennis_pic_05.png')
     height, width, _ = img.shape
     if height > 960:
         w_h_ratio = width / float(height)
@@ -90,12 +45,8 @@ def main():
     threshold_l = THRESHOLD_L
     threshold_d = THRESHOLD_D
 
-    for x in range(tau, width - tau):
-        for y in range(tau, height - tau):
-            court_line_candidate[y, x] = court_line_formula(
-                    img_y_int32, y, x, tau, threshold_l, threshold_d
-                )
-
+    # about 50% faster (3.3x sec -> 1.7x sec) than single process version
+    court_line_candidate = get_court_line_image_mp(img_y_int32, height, width, tau, threshold_l, threshold_d)
 
     # exclude pixels that are in textured regions
     
@@ -257,48 +208,6 @@ def main():
     # replace the old one
     lines_extended = refinded_lines
 
-    # scanned for duplicates
-    # but no duplicates XDD
-    # rad_thresh = math.cos(0.75 * math.pi / 180)
-    # dist_thresh = 1.5
-    # lines_para_dict_new = {}
-
-    # print("Before scanned duplicates:", lines_parameterized.keys())
-
-    # while True:
-    #     for (line_a, line_b) in combinations(lines_extended.values(), 2):
-    #         if ((np.dot(line_a.parameterized[:2], line_b.parameterized[:2]) > rad_thresh) and (abs(-line_a.parameterized[2] + line_b.parameterized[2]) < 1.5)):
-    #             # duplicate
-    #             if line_a.id in lines_para_dict_new:
-    #                 continue
-    #             elif line_b.id in lines_para_dict_new:
-    #                 continue
-    #             else:
-    #                 # add one only
-    #                 lines_para_dict_new[line_a.id] = line_a 
-    #         else:
-    #             # add both
-    #             if line_a.id not in lines_para_dict_new:
-    #                 lines_para_dict_new[line_a.id] = line_a
-                
-    #             if line_b.id not in lines_para_dict_new:
-    #                 lines_para_dict_new[line_b.id] = line_b
-
-
-    #     # print("lines_parameterized keys:", lines_parameterized.keys())
-    #     # print("lines_para_dict_new keys:", lines_para_dict_new.keys())
-    #     if len(lines_para_dict_new) == len(lines_extended):
-    #         break
-    #     else:
-    #         lines_extended = lines_para_dict_new
-    #         lines_para_dict_new = {}
-
-
-    # # print("After scanned duplicates:", lines_extended)
-
-    # for line in lines_extended.values():
-    #     line.draw_line_extended(img_0, (255, 0, 0))
-
     ###################################
     # 3.3.1 Finding Line Correspondences
     ###################################
@@ -357,11 +266,11 @@ def main():
     for line in lines_vertical:
         line.draw_line_extended(img_0, (255, 0, 0))
 
-    # print('lines_horizontal:', lines_horizontal)
-    # print('lines_vertical:', lines_vertical)
+    print('Num of lines_horizontal:', len(lines_horizontal))
+    print('Num of lines_vertical:', len(lines_vertical))
 
     # get court model line parameters
-    court_model_img, court_model_h, court_model_v, court_model_lines_h, court_model_lines_v = generate_court_model_lines()
+    court_model_h, court_model_v, court_model_lines_h, court_model_lines_v = TennisCourtModel.y, TennisCourtModel.x, TennisCourtModel.court_model_lines_h, TennisCourtModel.court_model_lines_v
 
     # "... determine the best line assignment by iterating through all possible assignments"
 
@@ -460,8 +369,6 @@ def main():
                                     
                                     if ((beta_square < 0.5 * 0.5) or (beta_square > 2 * 2)):
                                         continue
-                                    # else:
-                                        # print('model !! H =', H)
 
 
                                     ###################################
@@ -515,9 +422,7 @@ def main():
                                     score += np.count_nonzero(not_on_court) * -0.5
 
                                     if score > score_max:
-
                                         score_max = score
-
                                         saved_model = H
 
                                         ###############
@@ -560,7 +465,7 @@ def main():
 
 
 
-    # showing images
+    # Draw the projected court model to the image
     draw_court_model_to_img(img_2, saved_model, court_model_lines_h)
     draw_court_model_to_img(img_2, saved_model, court_model_lines_v)
 
@@ -589,13 +494,44 @@ def main():
         if k == ord('q'):
             break
 
-def court_line_formula(img_y, y, x, tau, threshold_l, threshold_d):
+def get_court_line_image_mp(int_y_int32, height, width, tau, threshold_l, threshold_d):
+    '''
+    Multi-process version to get court line pixels
+    In 3.1 White pixel detection
+    '''
+
+    # reference from https://stackoverflow.com/questions/50602137/python-multithread-process-to-fill-in-matrix-with-values
+
+    # construct pool
+    pool = mp.Pool(mp.cpu_count())
+
+    # organize the args
+    args = [(int_y_int32, row, col, tau, threshold_l, threshold_d, height, width) for (row, col) in list(itertools.product(range(height), range(width)))]
+    court_line_candidate = np.zeros((height, width))
+    results = pool.starmap(court_line_formula, args)
+
+    # unpack the results into the matrix
+    for i_tuple, result in zip([(row, col) for (row, col) in list(itertools.product(range(height), range(width)))], results):
+        # unpack
+        r, c = i_tuple
+
+        # set it in the matrix
+        court_line_candidate[r, c] = result
+
+    return court_line_candidate
+
+
+def court_line_formula(img_y, y, x, tau, threshold_l, threshold_d, height, width):
     '''
     Forumla for determine whether a pixel is court line candidate
     in 3.1 White pixel detection
     '''
-    # height, width, _ = img_y.shape
-    # print("(x, y) = ({}, {})".format(x, y))
+
+    if (x < tau) or (x >= width - tau):
+        return 0
+
+    if (y < tau) or (y >= height - tau):
+        return 0
 
     if ((img_y[y, x] >= threshold_l) and (img_y[y, x] - img_y[y, x-tau] > threshold_d) and (img_y[y, x] - img_y[y, x+tau] > threshold_d)):
         return 1
