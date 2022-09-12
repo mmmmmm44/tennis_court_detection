@@ -18,6 +18,9 @@ class Line:
         # pre-cal
         self.COS_DEGREE_THRESH = math.cos(DEGREE_THRESH * math.pi / 180)
 
+        # parameters
+        self.parameterized = np.array([])
+
     @classmethod
     def from_two_point(cls, id, p1, p2):
         '''
@@ -28,18 +31,28 @@ class Line:
         obj = cls(id, A, B, C)
         obj.start_pt = p1
         obj.end_pt = p2
+
+        # parameterization
+        obj.line_parameterization()
+
         return obj
 
     @classmethod
     def from_point_slope(cls, id, p1, m):
+        '''
+        Define a line in its point slope form
+        '''
         A, B, C = m, -1, -m * p1[0] + p1[1]
 
         return cls(id, A, B, C)
 
-    # def __init__(self, A, B, C):
-    #     self.A = A
-    #     self.B = B
-    #     self.C = C
+
+    def get_parameterized(self):
+        if not self.parameterized.size:
+            self.line_parameterization()
+
+        return self.parameterized
+        
 
     def line_parameterization(self):
         '''
@@ -58,17 +71,26 @@ class Line:
 
         self.d = Line.dist_btw_line_point(self.A, self.B, self.C, (0, 0))
 
-        self.parameterized = [self.n_x, self.n_y, -self.d]
+        self.parameterized = np.array([self.n_x, self.n_y, -self.d])
+
 
     def __eq__(self, other):
         return self.is_duplicate(other)
 
     # check whether two lines are duplicates
     def is_duplicate(self, other):
-        if ((np.dot(self.parameterized[:2], other.parameterized[:2]) > self.COS_DEGREE_THRESH) and (abs(self.parameterized[2] - other.parameterized[2]) < DIST_LINES_THRESH)):
+        if ((np.dot(self.get_parameterized()[:2], other.get_parameterized()[:2]) > self.COS_DEGREE_THRESH) and (abs(self.get_parameterized()[2] - other.get_parameterized()[2]) < DIST_LINES_THRESH)):
             return True
         else:
             return False
+
+
+    def dist_btw_point(self, p1):
+        '''
+        The distance between a line Ax + By + C = 0 and a point (x, y)
+        Ref: https://en.wikipedia.org/wiki/Distance_from_a_point_to_a_line
+        '''
+        return abs(self.A * p1[0] + self.B * p1[1] + self.C) / math.sqrt(self.A * self.A + self.B * self.B)
 
 
     ####################

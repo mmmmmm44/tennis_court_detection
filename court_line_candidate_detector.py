@@ -12,22 +12,22 @@ from config import HOUGH_THRESHOLD, THRESHOLD_R
 # Section 3.2 Court Line Candidate Detector
 
 class CourtLineCandidateDetector:
-    def __init__(self, img, line_structure_const_and) -> None:
-        # init parameters to be accessed
-        self.img = np.array(img)
-        self.line_structure_const_and = line_structure_const_and
-        self.height, self.width = img.shape[:2]
-
+    def __init__(self) -> None:
         self.blur_canny = None
 
 
-    def execute(self):
+    def execute(self, img, line_structure_const_and):
         '''
         Section 3.2: Court line candidate detector
 
         line_structure_const_and: detected white pixels with line structure constraint.
         return: a dictionary of lines
         '''
+
+        # init parameters to be accessed
+        self.img = np.array(img)
+        self.line_structure_const_and = line_structure_const_and
+        self.height, self.width = img.shape[:2]
 
         self.lines = {}
 
@@ -69,7 +69,7 @@ class CourtLineCandidateDetector:
 
                 for line in self.lines.values():
                     p = np.array([x, y, 1])
-                    q = np.array(line.parameterized)
+                    q = line.get_parameterized()
                     if abs(np.dot(q, p)) < dist_thresh:
 
                         if line.id not in self.court_line_candidate_pixels:
@@ -98,6 +98,17 @@ class CourtLineCandidateDetector:
 
             self.refinded_lines[key] = regressed
 
+        return self.refinded_lines
+        
+
+    ####################
+    # Get-setters
+    ####################
+
+    def get_court_line_candidate_pixels(self):
+        return self.court_line_candidate_pixels
+
+    def get_refined_lines(self):
         return self.refinded_lines
 
 

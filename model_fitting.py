@@ -8,16 +8,13 @@ from line import Line
 from config import CLS_ANGLE_THRESH
 
 class ModelFitting:
-    def __init__(self, lines_extended, img, line_structure_const_and) -> None:
-        self.img = img
-        self.lines_extended = lines_extended
-        self.line_structure_const_and = line_structure_const_and
-
-        # assume the processing images remain the same shape as the original image
-        self.height, self.width = self.line_structure_const_and.shape[:2]
+    def __init__(self) -> None:
+        
+        # get court model line parameters
+        self.court_model_h, self.court_model_v, self.court_model_lines_h, self.court_model_lines_v = TennisCourtModel.y, TennisCourtModel.x, TennisCourtModel.court_model_lines_h, TennisCourtModel.court_model_lines_v
 
 
-    def execute(self):
+    def execute(self, img, lines_extended, line_structure_const_and):
         '''
         Section 3.3: Model Fitting
 
@@ -25,6 +22,14 @@ class ModelFitting:
 
         Return: the best Homography matrix, and its score
         '''
+
+        self.img = img
+        self.lines_extended = lines_extended
+        self.line_structure_const_and = line_structure_const_and
+
+        # assume the processing images remain the same shape as the original image
+        self.height, self.width = self.line_structure_const_and.shape[:2]
+
         ###################################
         # 3.3.1 Finding Line Correspondences
         ###################################
@@ -32,9 +37,6 @@ class ModelFitting:
 
         print('Num of lines_horizontal:', len(self.lines_horizontal))
         print('Num of lines_vertical:', len(self.lines_vertical))
-
-        # get court model line parameters
-        self.court_model_h, self.court_model_v, self.court_model_lines_h, self.court_model_lines_v = TennisCourtModel.y, TennisCourtModel.x, TennisCourtModel.court_model_lines_h, TennisCourtModel.court_model_lines_v
 
 
         ###################################
@@ -68,10 +70,10 @@ class ModelFitting:
             return np.dot(line_para, p1)
 
         lines_horizontal.sort(
-            key = lambda x: sort_dist_key(x.parameterized, [int(self.width / 2.0), 0, 1]), reverse=True
+            key = lambda x: sort_dist_key(x.get_parameterized(), np.array([int(self.width / 2.0), 0, 1])), reverse=True
         )
         lines_vertical.sort(
-            key = lambda x: sort_dist_key(x.parameterized, [0, int(self.height / 2.0), 1]), reverse=True
+            key = lambda x: sort_dist_key(x.get_parameterized(), np.array([0, int(self.height / 2.0), 1])), reverse=True
         )
 
 
@@ -195,10 +197,11 @@ class ModelFitting:
                                         # transform all line segments of the model to the image
 
                                         score = 0
-
-                                        court_transform = np.array(self.img)
-
                                         trans_court_model = np.zeros((self.height, self.width))
+
+                                        # Debug only
+                                        # court_transform = np.array(self.img)
+
                                         
                                         for line_h in self.court_model_lines_h:
                                             start_pt_t = np.matmul(H, np.array([line_h.start_pt[0], line_h.start_pt[1], 1]))
@@ -209,9 +212,9 @@ class ModelFitting:
                                             cv2.line(trans_court_model, (int(start_pt_t[0]), int(start_pt_t[1])), (int(end_pt_t[0]), int(end_pt_t[1])), (255, 255, 255), 2)
 
                                             # Debug use
-                                            mid_pt = (int((start_pt_t[0] + end_pt_t[0]) / 2), int((start_pt_t[1] + end_pt_t[1]) / 2))
-                                            cv2.putText(court_transform, str(line_h.id), mid_pt, cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 1, cv2.LINE_AA)
-                                            cv2.line(court_transform, (int(start_pt_t[0]), int(start_pt_t[1])), (int(end_pt_t[0]), int(end_pt_t[1])), (255, 255, 0), 2)
+                                            # mid_pt = (int((start_pt_t[0] + end_pt_t[0]) / 2), int((start_pt_t[1] + end_pt_t[1]) / 2))
+                                            # cv2.putText(court_transform, str(line_h.id), mid_pt, cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 1, cv2.LINE_AA)
+                                            # cv2.line(court_transform, (int(start_pt_t[0]), int(start_pt_t[1])), (int(end_pt_t[0]), int(end_pt_t[1])), (255, 255, 0), 2)
 
                                         for line_v in self.court_model_lines_v:
                                             start_pt_t = np.matmul(H, np.array([line_v.start_pt[0], line_v.start_pt[1], 1]))
@@ -222,9 +225,9 @@ class ModelFitting:
                                             cv2.line(trans_court_model, (int(start_pt_t[0]), int(start_pt_t[1])), (int(end_pt_t[0]), int(end_pt_t[1])), (255, 255, 255), 2)
 
                                             # Debug use
-                                            mid_pt = (int((start_pt_t[0] + end_pt_t[0]) / 2), int((start_pt_t[1] + end_pt_t[1]) / 2))
-                                            cv2.putText(court_transform, str(line_v.id), mid_pt, cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 1, cv2.LINE_AA)
-                                            cv2.line(court_transform, (int(start_pt_t[0]), int(start_pt_t[1])), (int(end_pt_t[0]), int(end_pt_t[1])), (255, 0, 0), 2)
+                                            # mid_pt = (int((start_pt_t[0] + end_pt_t[0]) / 2), int((start_pt_t[1] + end_pt_t[1]) / 2))
+                                            # cv2.putText(court_transform, str(line_v.id), mid_pt, cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 1, cv2.LINE_AA)
+                                            # cv2.line(court_transform, (int(start_pt_t[0]), int(start_pt_t[1])), (int(end_pt_t[0]), int(end_pt_t[1])), (255, 0, 0), 2)
 
 
                                         trans_court_model = cv2.normalize(trans_court_model, None, alpha=0, beta=255, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_8U)

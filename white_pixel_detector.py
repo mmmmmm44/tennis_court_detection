@@ -10,24 +10,22 @@ from config import TAU, THRESHOLD_L, THRESHOLD_D, BLOCK_SIZE, APERATURE_SIZE
 
 class WhitePixelDetector:
 
-    def __init__(self, img) -> None:
-        # initialize them first
-        self.img = img
-
+    def __init__(self) -> None:
         self.court_line_candidate = None
         self.line_structure_const = None
         self.line_structure_const_and = None
 
-    def execute(self):
+    def execute(self, img):
         '''
         Section 3.1 White Pixel detection
 
         img: BGR image
         return: image with detected white line pixel
         '''
-        height, width = self.img.shape[:2]
 
-        img_ycbcr = cv2.cvtColor(self.img, cv2.COLOR_BGR2YCR_CB)
+        height, width = img.shape[:2]
+
+        img_ycbcr = cv2.cvtColor(img, cv2.COLOR_BGR2YCR_CB)
 
         # prevent overflow error
         img_y_int32 = img_ycbcr[:, :, 0].astype(np.int32)
