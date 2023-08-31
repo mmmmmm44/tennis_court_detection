@@ -177,6 +177,9 @@ cython_debug/
 *.mp4
 
 *.pdf
+!Robust Camera Calibration for Sport Videos using Court Models.pdf
+!Farin2004b_slides.pdf
+
 *.psd
 *.f
 
