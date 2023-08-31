@@ -7,61 +7,15 @@ from unittest import result
 
 import cv2
 import numpy as np
+from LA_Algorithm.LMA import LM
 
 # custom sub-classes
 from tennis_court_model import TennisCourtModel
+from utils import draw_court_model_to_img, resize_img
 
 from white_pixel_detector import WhitePixelDetector
 from court_line_candidate_detector import CourtLineCandidateDetector
 from model_fitting import ModelFitting
-
-
-def main():
-    # tennis court image
-    img = cv2.imread('test_images/tennis_pic_02.png')
-    
-    img = resize_img(img)
-
-    # Init detectors
-    whitePixelDetector = WhitePixelDetector()
-    courtLineCandidateDetector = CourtLineCandidateDetector()
-    modelFitting = ModelFitting()
-    
-    best_model, score_max = court_model_init(img, whitePixelDetector, courtLineCandidateDetector, modelFitting)
-
-
-    # visualization
-    img_1 = np.array(img)
-    draw_lines(img_1, modelFitting.lines_horizontal)
-    draw_lines(img_1, modelFitting.lines_vertical)
-
-    # Draw the projected court model to the image
-    result_img = np.array(img)
-    draw_court_model_to_img(result_img, best_model)
-
-    print('Best model:')
-    print(best_model)
-    print("Best score:", score_max)
-
-    while True:
-        cv2.imshow('img', img)
-        cv2.imshow('court_line_cand', whitePixelDetector.court_line_candidate)
-        cv2.imshow('line_struct_const', whitePixelDetector.line_structure_const)
-        cv2.imshow('line_struct_const_and', whitePixelDetector.line_structure_const_and)
-        cv2.imshow('blur_canny', courtLineCandidateDetector.blur_canny)
-        cv2.imshow('lines extended result', img_1)
-        # cv2.imshow('lines extended horizontal', img_l_h)
-        # cv2.imshow('lines extended vertical', img_l_v)
-        cv2.imshow('result', result_img)
-        # cv2.imshow('line 1', img_line_1)
-        # cv2.imshow('sobel line', grad)
-
-        # for k, _img in court_line_cand_img.items():
-        #     cv2.imshow('court line {}'.format(k), _img)
-        
-        k = cv2.waitKey(1)
-        if k == ord('q'):
-            break
 
 
 def court_model_init(img, whitePixelDetector, courtLineCandidateDetector, modelFitting):
@@ -137,6 +91,9 @@ def main_video():
             # save the model to the queue
             past_H_deque.append(best_model)
 
+            print('H')
+            print(best_model)
+
             cv2.imshow('Frame', result_img)
 
         # with enough past data for estimation
@@ -151,12 +108,22 @@ def main_video():
 
             # @ = np.matmul()
             H_t_plus_1 = H_t @ np.linalg.inv(H_t_minus_1) @ H_t
-            M = np.linalg.inv(H_t_plus_1)
+            M = np.linalg.inv(H_t_plus_1)                           # M = an estimate of (H_t_plus_1)^(-1)
+
+            # Debug
+            # try project the court model to the image:
+            # result_img = np.array(frame)
+            # draw_court_model_to_img(result_img, H_t_plus_1)
+
+            # cv2.imshow('test', result_img)
+            # cv2.waitKey(0)
 
             # project white pixels to court model
             # use pixel by pixel for loop to achieve that
 
             # possible improvement: multi-process with Queue as structure to handle the dictionary
+
+            test_img = np.zeros((height, width), dtype=np.uint8)
 
             white_pixels_cords = []
             closest_model_lines = []
@@ -179,30 +146,79 @@ def main_video():
                             closest_line_id = line.id
 
                     # ignore pixels that the closest_dist is larger than a certain value
-                    if closest_dist > 30:
+                    if closest_dist > 1:
                         continue
 
 
+                    test_img[y, x] = 255
                     white_pixels_cords.append(np.array([x, y, 1]))
                     closest_model_lines.append(court_model_lines[closest_line_id].get_parameterized())
 
             white_pixels_cords = np.array(white_pixels_cords)       # shape = (N, 3)
             closest_model_lines = np.array(closest_model_lines)     # shape = (N, 3)
-                    
+
+            # cv2.imshow('Line struct const', line_structure_const_and)
+            # cv2.imshow('test_img', test_img)
+
+            # cv2.waitKey(0)
+
+            original_error = projection_error_function(M.reshape((9, 1)), (white_pixels_cords, closest_model_lines))
+            print('Original estimate error:', original_error, '; rms error:', np.square(original_error).sum())
                     
             # Python implementation of LM Algorithm, included example in solving transformations
             # https://github.com/jjhartmann/Levenberg-Marquardt-Algorithm
             # or using scipy.optimize.root() ??
 
-            projection_error_function(M, (white_pixels_cords, closest_model_lines))
+            # Still don't know how to write the correct one...
+
+            out = LM(
+                seed_params=M.reshape((9,)),
+                args=(white_pixels_cords, closest_model_lines),
+                error_function=projection_error_function,
+                lambda_multiplier=10,
+                kmax=1000,
+                eps=0.001,
+                verbose=True
+            )
+
+            if out == -1:
+                print("Error occurred. The program will shut itself.")
+                exit(0)
+
+            M_star = out[1]
+
+            print("Before LM")
+            print(M)
+
+            print("After LM")
+            print(M_star.reshape((3, 3)))
+
+            H_t_plus_1_LM = np.linalg.inv(M_star.reshape((3, 3)))
+            # Normalization
+            H_t_plus_1_LM /= H_t_plus_1_LM[2, 2]
 
 
-            cv2.imshow('Frame', frame)
+            # Do the projection
+           
+            result_img = np.array(frame)
+            draw_court_model_to_img(result_img, H_t_plus_1_LM)
+
+            result_img2 = np.array(frame)
+            draw_court_model_to_img(result_img2, H_t_plus_1)
+
+            # save the model to the queue
+            past_H_deque.append(H_t_plus_1_LM)
+
+            cv2.imshow('Frame', result_img)
+            cv2.imshow('Frame-est', result_img2)
         
         k = cv2.waitKey(0)
         # if k == ord('q'):
         #     break
 
+
+    cap.release()
+    cv2.destroyAllWindows()
 
 # the projection error function D
 def projection_error_function(params, args):
@@ -210,37 +226,35 @@ def projection_error_function(params, args):
     params: numpy array [H11, H12, H13, H21, ..., H31, H32, H33]
     args: (white_pixels_cords, closest_model_lines)
     '''
-    M = params
+    M = params.reshape(3, 3)
 
-    white_pixels_cords, closest_model_lines = args
+    white_pixels_cords, closest_model_lines = args      # shape: (N, 3); (N, 3)
 
-    print(white_pixels_cords.shape)
-    print(white_pixels_cords)
-
-    print(closest_model_lines.shape)
-    print(closest_model_lines)
-
-    D = 0
+    # print(white_pixels_cords.shape)
+    # print(white_pixels_cords)
+    # print(closest_model_lines.shape)
+    # print(closest_model_lines)
 
     # Do the cost function
     # Step 1: M @ white pixels
 
     white_pixels_cords = white_pixels_cords.transpose()     # shape = (3, N)
 
-    np_Mp = M @ white_pixels_cords                        # (3, 3) @ (3, N) = (3, N)
+    np_Mp = M @ white_pixels_cords                          # (3, 3) @ (3, N) = (3, N)
 
     # normalize
     np_PMp = np_Mp / np_Mp[2, :]
 
     # multiply & sum to minick the dot and summation operation
-    np_temp = np.einsum("ij,ji->ij", closest_model_lines, np_PMp)
-    np_temp = np_temp.sum(axis=1)
+    np_temp = np.einsum("ij,ji->i", closest_model_lines, np_PMp)
+    # np_temp = np_temp.sum(axis=1)
 
     # square and get D
-    D = np_temp @ np_temp
+    # D = np_temp @ np_temp
     
-    return D
+    # return D
 
+    return np_temp
 
 def resize_img(img, target_h=960):
     height, width, _ = img.shape

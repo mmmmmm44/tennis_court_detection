@@ -124,9 +124,9 @@ def LM(seed_params, args,
 
         # == Jt * error
         error = error_function(params, args)
-        Jerror = inner(J, error)
+        Jerror = inner(J, error)                    # ??? Does J*error work like we typed??
 
-        rmserror = norm(error)
+        rmserror = norm(error)              # ???
 
         if verbose:
             print("{} RMS: {} Params: {}".format(k, rmserror, params))
