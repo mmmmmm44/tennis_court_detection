@@ -179,3 +179,5 @@ cython_debug/
 *.pdf
 *.psd
 *.f
+
+*test_videos
