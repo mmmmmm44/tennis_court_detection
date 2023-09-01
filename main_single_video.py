@@ -49,7 +49,7 @@ def court_model_init(img, whitePixelDetector, courtLineCandidateDetector, modelF
     return best_model, score_max
 
 def show_video_with_projection_matrix():
-    play_name = 'play_01'
+    play_name = 'play_05'
 
     video_file_path = Path(f'test_videos/{play_name}.mp4')
     numpy_H_matrices_folder_path = Path(f"test_section_4_1_data/{play_name}")
@@ -60,7 +60,7 @@ def show_video_with_projection_matrix():
         print('No pre-calculated result is shown. Program terminates.')
         return
 
-    no_of_results = len([print(name) for name in os.listdir(str(numpy_H_matrices_folder_path)) if os.path.isfile(name)])
+    no_of_results = len(next(os.walk(numpy_H_matrices_folder_path))[2])
 
     length = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
 
@@ -105,7 +105,7 @@ def show_video_with_projection_matrix():
     cv2.destroyAllWindows()
 
 def main_video():
-    play_name = 'play_01'
+    play_name = 'play_05'
 
     video_file_path = Path(f'test_videos/{play_name}.mp4')
     numpy_H_matrices_folder_path = Path(f"test_section_4_1_data/{play_name}")
@@ -232,7 +232,7 @@ def main_video():
 
                     # ignore pixels that the closest_dist is larger than a certain value
                     # the value is small since the declared court model is not large
-                    if closest_dist > 1.5:
+                    if closest_dist > 1:
                         continue
 
 
@@ -245,8 +245,8 @@ def main_video():
 
             # cv2.imshow('Line struct const', line_structure_const_and)
             print('M:', M)
-            original_error = projection_error_function(M.reshape((9, 1)), (white_pixels_cords, closest_model_lines))
-            print('Original estimate error:', original_error, '; rms error:', np.square(original_error).sum())
+            # original_error = projection_error_function(M.reshape((9, 1)), (white_pixels_cords, closest_model_lines))
+            # print('Original estimate error:', original_error, '; rms error:', np.square(original_error).sum())
                     
             cv2.imshow('remaining_white_pixels', remaining_white_pixels)
             # cv2.waitKey(1)
