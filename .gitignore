@@ -171,6 +171,8 @@ cython_debug/
 .history
 
 # custom
+*.DS_Store
+
 *.png
 !test_images/*.png
 
