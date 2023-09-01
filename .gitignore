@@ -177,6 +177,7 @@ cython_debug/
 
 *.png
 !test_images/*.png
+!result_samples/*.png
 
 *.mp4
 
