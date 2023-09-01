@@ -184,3 +184,4 @@ cython_debug/
 *.f
 
 *test_videos
+*test_section_4_1_data

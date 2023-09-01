@@ -2,6 +2,8 @@
 # Robust Camera Calibration for Sport Videos using Court Models
 
 from collections import deque
+import os
+from pathlib import Path
 from time import time
 from unittest import result
 
@@ -11,7 +13,7 @@ from LA_Algorithm.LMA import LM
 
 # custom sub-classes
 from tennis_court_model import TennisCourtModel
-from utils import draw_court_model_to_img, resize_img
+from utils import draw_court_model_to_img, load_H_matrix, resize_img, save_H_matrix
 
 from white_pixel_detector import WhitePixelDetector
 from court_line_candidate_detector import CourtLineCandidateDetector
@@ -46,14 +48,75 @@ def court_model_init(img, whitePixelDetector, courtLineCandidateDetector, modelF
 
     return best_model, score_max
 
+def show_video_with_projection_matrix():
+    play_name = 'play_01'
+
+    video_file_path = Path(f'test_videos/{play_name}.mp4')
+    numpy_H_matrices_folder_path = Path(f"test_section_4_1_data/{play_name}")
+
+    cap = cv2.VideoCapture(str(video_file_path))
+
+    if not numpy_H_matrices_folder_path.exists():
+        print('No pre-calculated result is shown. Program terminates.')
+        return
+
+    no_of_results = len([print(name) for name in os.listdir(str(numpy_H_matrices_folder_path)) if os.path.isfile(name)])
+
+    length = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+
+    print(f'total num of results: {no_of_results}')
+    print(f'total num of frames: {length}')
+
+    # if no_of_results != length:
+    #     print('Number of pre-calculated results does not match with the total number of frames of the video. Program terminates')
+    #     return
+    
+    frame_no = 1
+
+    while cap.isOpened():
+        ret, frame = cap.read()
+
+        if not ret:
+            print("End of video.")
+            break
+
+        # resize frame to reduce computation time
+        frame = resize_img(frame)
+
+        numpy_H_matrix_filename = Path(numpy_H_matrices_folder_path, f"H_matrix_frame_{frame_no}.npy")
+
+        if not numpy_H_matrix_filename.exists():
+            print(f'The precalculated numpy result for frame {frame_no} does not exist. Program terminates.')
+            break
+
+        H = load_H_matrix(numpy_H_matrix_filename)
+
+        # project court model to the image
+        draw_court_model_to_img(frame, H)
+
+        cv2.imshow('frame', frame)
+        k = cv2.waitKey(50)
+        if k == ord('q'):
+            break
+
+        frame_no += 1
+
+    cap.release()
+    cv2.destroyAllWindows()
 
 def main_video():
-    cap = cv2.VideoCapture('test_videos/Play 1.mp4')
-    
-    # TODO section 4
+    play_name = 'play_01'
 
+    video_file_path = Path(f'test_videos/{play_name}.mp4')
+    numpy_H_matrices_folder_path = Path(f"test_section_4_1_data/{play_name}")
+
+    cap = cv2.VideoCapture(str(video_file_path))
+    
     if not cap.isOpened():
         print('Failed to open video file. Please check the file name.')
+
+    if not numpy_H_matrices_folder_path.exists():
+        numpy_H_matrices_folder_path.mkdir(parents=True)
 
     # last two frames H for predicting t+1 frame
     past_H_deque = deque(maxlen=2)
@@ -67,6 +130,7 @@ def main_video():
     court_model_lines_h, court_model_lines_v = TennisCourtModel.court_model_lines_h, TennisCourtModel.court_model_lines_v
     court_model_lines = court_model_lines_h + court_model_lines_v
 
+    frame_no = 1
 
     while cap.isOpened():
         ret, frame = cap.read()
@@ -81,9 +145,16 @@ def main_video():
         # resize frame to reduce computation time
         frame = resize_img(frame)
 
+
+        numpy_H_matrix_filename = Path(numpy_H_matrices_folder_path, f"H_matrix_frame_{frame_no}.npy")
+
         if len(past_H_deque) < past_H_deque.maxlen:
-             # init court model
-            best_model, score_max = court_model_init(frame, whitePixelDetector, courtLineCandidateDetector, modelFitting)
+
+            if numpy_H_matrix_filename.exists():
+                best_model = load_H_matrix(numpy_H_matrix_filename)
+            else: 
+                # init court model
+                best_model, score_max = court_model_init(frame, whitePixelDetector, courtLineCandidateDetector, modelFitting)
 
             result_img = np.array(frame)
             draw_court_model_to_img(result_img, best_model)
@@ -91,13 +162,30 @@ def main_video():
             # save the model to the queue
             past_H_deque.append(best_model)
 
-            print('H')
+            print(f'H frame_{frame_no}')
             print(best_model)
+
+            # save numpy matrices for reducing computation time
+            if not numpy_H_matrix_filename.exists():
+                save_H_matrix(numpy_H_matrix_filename, best_model)
 
             cv2.imshow('Frame', result_img)
 
         # with enough past data for estimation
         else:
+            # load from pre-calculated result
+            if numpy_H_matrix_filename.exists():
+                H_t_plus_1_LM = load_H_matrix(numpy_H_matrix_filename)
+                print(f'Loaded precalculated frame {frame_no} result.')
+
+                # save the model to the queue
+                past_H_deque.append(H_t_plus_1_LM)
+
+                frame_no += 1
+
+                continue
+
+
             height, width = frame.shape[:2]
 
             # 3.1 only
@@ -112,10 +200,7 @@ def main_video():
 
             # Debug
             # try project the court model to the image:
-            # result_img = np.array(frame)
-            # draw_court_model_to_img(result_img, H_t_plus_1)
-
-            # cv2.imshow('test', result_img)
+            # cv2.imshow('line_structure_const_and', line_structure_const_and)
             # cv2.waitKey(0)
 
             # project white pixels to court model
@@ -123,7 +208,7 @@ def main_video():
 
             # possible improvement: multi-process with Queue as structure to handle the dictionary
 
-            test_img = np.zeros((height, width), dtype=np.uint8)
+            remaining_white_pixels = np.zeros((height, width), dtype=np.uint8)
 
             white_pixels_cords = []
             closest_model_lines = []
@@ -132,7 +217,7 @@ def main_video():
                 for x in range(width):
                     if line_structure_const_and[y, x] == 0: continue
 
-                    # projection
+                    # projecting classified white pixels to the court model
                     projected_cord = np.matmul(M, np.array([x, y, 1]), dtype=np.float32)
                     projected_cord = projected_cord / projected_cord[2]
 
@@ -146,11 +231,12 @@ def main_video():
                             closest_line_id = line.id
 
                     # ignore pixels that the closest_dist is larger than a certain value
-                    if closest_dist > 1:
+                    # the value is small since the declared court model is not large
+                    if closest_dist > 1.5:
                         continue
 
 
-                    test_img[y, x] = 255
+                    remaining_white_pixels[y, x] = 255
                     white_pixels_cords.append(np.array([x, y, 1]))
                     closest_model_lines.append(court_model_lines[closest_line_id].get_parameterized())
 
@@ -158,13 +244,13 @@ def main_video():
             closest_model_lines = np.array(closest_model_lines)     # shape = (N, 3)
 
             # cv2.imshow('Line struct const', line_structure_const_and)
-            # cv2.imshow('test_img', test_img)
-
-            # cv2.waitKey(0)
-
+            print('M:', M)
             original_error = projection_error_function(M.reshape((9, 1)), (white_pixels_cords, closest_model_lines))
             print('Original estimate error:', original_error, '; rms error:', np.square(original_error).sum())
                     
+            cv2.imshow('remaining_white_pixels', remaining_white_pixels)
+            # cv2.waitKey(1)
+
             # Python implementation of LM Algorithm, included example in solving transformations
             # https://github.com/jjhartmann/Levenberg-Marquardt-Algorithm
             # or using scipy.optimize.root() ??
@@ -176,7 +262,7 @@ def main_video():
                 args=(white_pixels_cords, closest_model_lines),
                 error_function=projection_error_function,
                 lambda_multiplier=10,
-                kmax=1000,
+                kmax=50,
                 eps=0.001,
                 verbose=True
             )
@@ -185,21 +271,31 @@ def main_video():
                 print("Error occurred. The program will shut itself.")
                 exit(0)
 
-            M_star = out[1]
+            rmserror, reason = out[0], out[2]
 
+            print('\n\n')
+            print('LM ends')
+            print(f'rmserror: {rmserror}; reason: {reason}')
+            
+            M_star = out[1].reshape((3, 3))
+            
+
+            print('\n\n')
             print("Before LM")
             print(M)
-
             print("After LM")
-            print(M_star.reshape((3, 3)))
+            print("M_star:")
+            print(M_star)
 
+            # H_t_plus_1_LM = np.linalg.inv(M_star.reshape((3, 3)))
             H_t_plus_1_LM = np.linalg.inv(M_star.reshape((3, 3)))
             # Normalization
             H_t_plus_1_LM /= H_t_plus_1_LM[2, 2]
 
+            print('Estimated M, to project court model to image. = inversed M_star')
+            print(H_t_plus_1_LM)
 
             # Do the projection
-           
             result_img = np.array(frame)
             draw_court_model_to_img(result_img, H_t_plus_1_LM)
 
@@ -209,13 +305,23 @@ def main_video():
             # save the model to the queue
             past_H_deque.append(H_t_plus_1_LM)
 
-            cv2.imshow('Frame', result_img)
-            cv2.imshow('Frame-est', result_img2)
-        
-        k = cv2.waitKey(0)
-        # if k == ord('q'):
-        #     break
+            print(f'H_est frame_{frame_no}')
+            print(H_t_plus_1)
 
+            cv2.imshow('Frame H_t_plus_1', result_img2)
+            cv2.imshow('Frame H_t_plus_1_LM', result_img)
+
+
+            # save numpy matrices for reducing computation time
+            if not numpy_H_matrix_filename.exists():
+                save_H_matrix(numpy_H_matrix_filename, H_t_plus_1_LM)
+                print(f'Saved frame {frame_no} result after LM.')
+        
+        k = cv2.waitKey(1)
+        if k == ord('q'):
+            break
+
+        frame_no += 1
 
     cap.release()
     cv2.destroyAllWindows()
@@ -223,12 +329,15 @@ def main_video():
 # the projection error function D
 def projection_error_function(params, args):
     '''
+    Calculate the error of projecting the white pixels to the court model.
+    Error is defined as euclidian distance
+
     params: numpy array [H11, H12, H13, H21, ..., H31, H32, H33]
     args: (white_pixels_cords, closest_model_lines)
     '''
-    M = params.reshape(3, 3)
+    M = params.reshape(3, 3)                            # checked
 
-    white_pixels_cords, closest_model_lines = args      # shape: (N, 3); (N, 3)
+    white_pixels_cords, closest_model_lines = args      # shape: (N, 3); (N, 3)     # checked
 
     # print(white_pixels_cords.shape)
     # print(white_pixels_cords)
@@ -238,58 +347,26 @@ def projection_error_function(params, args):
     # Do the cost function
     # Step 1: M @ white pixels
 
-    white_pixels_cords = white_pixels_cords.transpose()     # shape = (3, N)
+    white_pixels_cords = white_pixels_cords.transpose()     # shape = (3, N)        # checked
 
     np_Mp = M @ white_pixels_cords                          # (3, 3) @ (3, N) = (3, N)
 
     # normalize
-    np_PMp = np_Mp / np_Mp[2, :]
+    np_PMp = np_Mp / np_Mp[2, :]                            # checked
 
     # multiply & sum to minick the dot and summation operation
     np_temp = np.einsum("ij,ji->i", closest_model_lines, np_PMp)
-    # np_temp = np_temp.sum(axis=1)
 
-    # square and get D
-    # D = np_temp @ np_temp
-    
-    # return D
+    # square each element in the 1D matrix, then add them -> gives D (in the paper)
+    # np_temp = np_temp @ np_temp
+
+    # does this as in the LM func instead of above
+    # as they will apply np.norm() to this value to get the rms error
+    # which is equivalent to squaring each element then sum all of them.
+    np_temp = np_temp * np_temp
 
     return np_temp
 
-def resize_img(img, target_h=960):
-    height, width, _ = img.shape
-    if height > target_h:
-        w_h_ratio = width / float(height)
-        img = cv2.resize(img, (int(target_h * w_h_ratio), target_h), interpolation=cv2.INTER_AREA)
-
-    return img
-
-
-def draw_lines(img, lines, color=(255, 0, 0)):
-    for line in lines:
-        line.draw_line_extended(img, color)
-
-
-def draw_court_model_to_img(img, H):
-
-    _draw_court_model_lines_to_img(img, H, TennisCourtModel.court_model_lines_h)
-    _draw_court_model_lines_to_img(img, H, TennisCourtModel.court_model_lines_v)
-
-    return img
-
-def _draw_court_model_lines_to_img(img, H, court_model_lines):
-    for line in court_model_lines:
-        start_pt_t = np.matmul(H, np.array([line.start_pt[0], line.start_pt[1], 1]))
-        end_pt_t = np.matmul(H, np.array([line.end_pt[0], line.end_pt[1], 1]))
-        start_pt_t = start_pt_t / start_pt_t[2]
-        end_pt_t = end_pt_t / end_pt_t[2]
-
-        mid_pt = (int((start_pt_t[0] + end_pt_t[0]) / 2), int((start_pt_t[1] + end_pt_t[1]) / 2))
-        cv2.putText(img, str(line.id), mid_pt, cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 1, cv2.LINE_AA)
-
-        cv2.line(img, (int(start_pt_t[0]), int(start_pt_t[1])), (int(end_pt_t[0]), int(end_pt_t[1])), (255, 255, 0), 2)
-
 if __name__ == '__main__':
-    # main()
-    main_video()
-    # generate_court_model_lines()
+    # main_video()
+    show_video_with_projection_matrix()
