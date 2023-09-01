@@ -4,7 +4,6 @@
 from collections import deque
 import os
 from pathlib import Path
-from time import time
 from unittest import result
 
 import cv2

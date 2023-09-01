@@ -1,10 +1,20 @@
 # Tennis Court Detection
 
-Python Implementation of the paper "Robust Camera Calibration for Sport Videos using Court Models"
+Python Implementation of the paper "Robust Camera Calibration for Sport Videos using Court Models", **both Section 3 and Section 4**
 
 Development Branch.
 
-This branch is delicated for Section 4, as my implementation is not perfect. The projected court model will deviate bit by bit from the court lines, which affect the detection of white pixels, causing a vicious cycle. The deviation can be observed after ~ 20 to 30 frames.
+![Result 05](result_samples/result_05.gif)
+
+This branch is delicated for Section 4, as my implementation is not perfect. The projected court model will deviate bit by bit from the court lines, which affect the detection and selection of white pixels, causing a vicious cycle. The deviation can be observed after ~ 20 to 30 frames.
+
+## Program Structure
+
+Most of the files are shared with main branch, except the files below.
+
+| File | Description |
+| --- | --- |
+| main_single_video.py | Script to run both Section 3 and Section 4 on a short video. It takes around 1 sec per frame. |
 
 ## Log
 
