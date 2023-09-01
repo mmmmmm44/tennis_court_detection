@@ -10,11 +10,14 @@ from court_line_candidate_detector import CourtLineCandidateDetector
 from model_fitting import ModelFitting
 
 def main():
-    img_path = Path('test_images/tennis_pic_01.png')
+    # img_path = Path('test_images/tennis_pic_01.png')
     # img_path = Path('test_images/tennis_pic_02.png')
     # img_path = Path('test_images/tennis_pic_03.png')
     # img_path = Path('test_images/tennis_pic_04.png')
     # img_path = Path('test_images/tennis_pic_05.png')
+    # img_path = Path('test_images/tennis_pic_06.png')
+    # img_path = Path('test_images/tennis_pic_07.png')
+    img_path = Path('test_images/tennis_pic_08.png')
 
 
     # tennis court image
