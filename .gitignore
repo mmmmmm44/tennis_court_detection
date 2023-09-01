@@ -173,6 +173,8 @@ cython_debug/
 # custom
 *.DS_Store
 
+*.npy
+
 *.png
 !test_images/*.png
 
