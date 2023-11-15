@@ -111,7 +111,7 @@ def main_video(save_matrix=True, load_saved_matrix=True):
     
     paramters
     -- save_matrix: whether save the calculated homography matrix
-    -- load_saved_matrix: whether load precalculated homography matrices.
+    -- load_saved_matrix: whether start from latest precalculated homography matrices.
     '''
     play_name = 'play_05'
 
@@ -182,7 +182,7 @@ def main_video(save_matrix=True, load_saved_matrix=True):
 
         # with enough past data for estimation
         else:
-            # load from pre-calculated result
+            # load pre-calculated result and start from latest precalculated result
             if load_saved_matrix:
                 if numpy_H_matrix_filename.exists():
                     H_t_plus_1_LM = load_H_matrix(numpy_H_matrix_filename)
@@ -320,7 +320,7 @@ def main_video(save_matrix=True, load_saved_matrix=True):
             cv2.imshow('Frame H_t_plus_1_LM', result_img)
 
 
-            # save numpy matrices for reducing computation time
+            # save numpy matrices for reducing computation time in next runs
             if save_matrix:
                 if not numpy_H_matrix_filename.exists():
                     save_H_matrix(numpy_H_matrix_filename, H_t_plus_1_LM)
