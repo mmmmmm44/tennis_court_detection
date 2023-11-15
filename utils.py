@@ -1,6 +1,8 @@
 import cv2
 import numpy as np
 
+from pathlib import Path
+
 from tennis_court_model import TennisCourtModel
 
 def resize_img(img, target_h=960):
@@ -34,3 +36,13 @@ def _draw_court_model_lines_to_img(img, H, court_model_lines):
         cv2.putText(img, str(line.id), mid_pt, cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 1, cv2.LINE_AA)
 
         cv2.line(img, (int(start_pt_t[0]), int(start_pt_t[1])), (int(end_pt_t[0]), int(end_pt_t[1])), (255, 255, 0), 2)
+
+
+def load_H_matrix(file_path:Path):
+    with open(file_path, 'rb') as f:
+        H_matrix = np.load(f)
+        return H_matrix
+    
+def save_H_matrix(file_path, H_matrix):
+    with open(file_path, 'wb') as f:
+        np.save(f, H_matrix)

@@ -64,8 +64,14 @@ def numerical_differentiation(params, args, error_function):
     :param error_function: function used to determine error based on params and observations
     :return: The jacobian for the error_function
     """
-    delta_factor = 1e-4
-    min_delta = 1e-4
+    # delta_factor = 1e-4
+    # min_delta = 1e-4
+
+    # reduce the delta factor and min delta
+    # as there exists value which is very small (1e-16)
+    # maintaining the delta_factor to 1e-4 will explose the algo
+    delta_factor = 1e-16
+    min_delta = 1e-24
 
     # Compute error
     y_0 = error_function(params, args)
@@ -127,6 +133,8 @@ def LM(seed_params, args,
         Jerror = inner(J, error)
 
         rmserror = norm(error)
+        print('rmserror:', rmserror)
+
 
         if verbose:
             print("{} RMS: {} Params: {}".format(k, rmserror, params))
@@ -143,7 +151,8 @@ def LM(seed_params, args,
                 delta = solve(JtJ + llambda * A, Jerror)
             except np.linalg.LinAlgError:
                 print("Error: Singular Matrix")
-                return -1
+                # return -1
+                return rmserror, params, "Error: Singular Matrix. Early return."
 
             # Update params and calculate new error
             params_star = params[:] + delta[:]
@@ -163,7 +172,7 @@ def LM(seed_params, args,
                 return rmserror, params, reason
 
         reduction = abs(rmserror - rmserror_star)
-        if reduction < 1e-18:
+        if reduction < 1e-3:
             reason = "Change in error too small"
             return rmserror, params, reason
 
