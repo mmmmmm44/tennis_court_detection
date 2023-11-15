@@ -48,6 +48,9 @@ def court_model_init(img, whitePixelDetector, courtLineCandidateDetector, modelF
     return best_model, score_max
 
 def show_video_with_projection_matrix():
+    '''Show precalculated homography matrices with the video.
+    Program terminates when there is no precalculated results.
+    '''
     play_name = 'play_05'
 
     video_file_path = Path(f'test_videos/{play_name}.mp4')
@@ -103,7 +106,13 @@ def show_video_with_projection_matrix():
     cap.release()
     cv2.destroyAllWindows()
 
-def main_video():
+def main_video(save_matrix=True, load_saved_matrix=True):
+    '''Calculate the homography matrices, and show images of intermediate results.
+    
+    paramters
+    -- save_matrix: whether save the calculated homography matrix
+    -- load_saved_matrix: whether load precalculated homography matrices.
+    '''
     play_name = 'play_05'
 
     video_file_path = Path(f'test_videos/{play_name}.mp4')
@@ -165,24 +174,26 @@ def main_video():
             print(best_model)
 
             # save numpy matrices for reducing computation time
-            if not numpy_H_matrix_filename.exists():
-                save_H_matrix(numpy_H_matrix_filename, best_model)
+            if save_matrix:
+                if not numpy_H_matrix_filename.exists():
+                    save_H_matrix(numpy_H_matrix_filename, best_model)
 
             cv2.imshow('Frame', result_img)
 
         # with enough past data for estimation
         else:
             # load from pre-calculated result
-            if numpy_H_matrix_filename.exists():
-                H_t_plus_1_LM = load_H_matrix(numpy_H_matrix_filename)
-                print(f'Loaded precalculated frame {frame_no} result.')
+            if load_saved_matrix:
+                if numpy_H_matrix_filename.exists():
+                    H_t_plus_1_LM = load_H_matrix(numpy_H_matrix_filename)
+                    print(f'Loaded precalculated frame {frame_no} result.')
 
-                # save the model to the queue
-                past_H_deque.append(H_t_plus_1_LM)
+                    # save the model to the queue
+                    past_H_deque.append(H_t_plus_1_LM)
 
-                frame_no += 1
+                    frame_no += 1
 
-                continue
+                    continue
 
 
             height, width = frame.shape[:2]
@@ -254,8 +265,6 @@ def main_video():
             # https://github.com/jjhartmann/Levenberg-Marquardt-Algorithm
             # or using scipy.optimize.root() ??
 
-            # Still don't know how to write the correct one...
-
             out = LM(
                 seed_params=M.reshape((9,)),
                 args=(white_pixels_cords, closest_model_lines),
@@ -312,9 +321,10 @@ def main_video():
 
 
             # save numpy matrices for reducing computation time
-            if not numpy_H_matrix_filename.exists():
-                save_H_matrix(numpy_H_matrix_filename, H_t_plus_1_LM)
-                print(f'Saved frame {frame_no} result after LM.')
+            if save_matrix:
+                if not numpy_H_matrix_filename.exists():
+                    save_H_matrix(numpy_H_matrix_filename, H_t_plus_1_LM)
+                    print(f'Saved frame {frame_no} result after LM.')
         
         k = cv2.waitKey(1)
         if k == ord('q'):
@@ -367,5 +377,5 @@ def projection_error_function(params, args):
     return np_temp
 
 if __name__ == '__main__':
-    # main_video()
-    show_video_with_projection_matrix()
+    main_video()
+    # show_video_with_projection_matrix()
